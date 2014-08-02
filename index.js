@@ -75,12 +75,10 @@ eventEmitter.on('needMoreIdeas', function () {
 
 
 app.post('/slackbot/inbound/pivot', function (req, res) {
-    var userName = req.body.user_name,
-        company = getRandomCompany();
-
+    var userName = (req.body.user_name) ? '@' + req.body.user_name : 'y\'all';
     getIdea(function (properNoun, forMarket) {
         res.send(200, {
-            text: sprintf('*Thinking of pivoting, @%s?* How about %s except %s for %s', userName, company, properNoun, forMarket),
+            text: sprintf('*Thinking of pivoting, %s?* How about %s for %s', userName, properNoun, forMarket),
             parse: 'full'
         });
     });
