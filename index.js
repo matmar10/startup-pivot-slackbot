@@ -10,6 +10,7 @@ var cachedIdeas = [],
     minCacheSize = 5,
     maxCacheSize = 20,
     startIdeaApiDelay = 2000,
+    tickerPattern = new RegExp('^(BTC|btc)\:[a-zA-Z]{3}'),
     app = express(),
     eventEmitter = new events.EventEmitter(),
     restClient,
@@ -57,7 +58,6 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 restClient.registerMethod('getStartupIdea', 'http://itsthisforthat.com/api.php?json', 'GET');
-
 eventEmitter.on('needMoreIdeas', function () {
     // console.log('Will now refill the ideas cache...');
     // cache needs to be filled
@@ -87,7 +87,8 @@ eventEmitter.on('needMoreIdeas', function () {
 app.post('/slackbot/inbound/:keyword', function (req, res) {
 
     var userName = (req.body.user_name) ? '@' + req.body.user_name : 'y\'all',
-        company = getRandomCompany();
+        company = getRandomCompany(),
+        toCurrency;
 
     switch (req.params.keyword) {
         case 'pivot':
@@ -108,8 +109,30 @@ app.post('/slackbot/inbound/:keyword', function (req, res) {
             });
             break;
 
+        case 'ticker':
+
+            toCurrency = tickerPattern.test(req.body.text) ? req.body.text.substring(4, 7).toUpperCase() : 'USD';
+
+            restClient.get(sprintf('https://api.bitcoinaverage.com/ticker/global/%s/', toCurrency), {}, function(data, response) {
+                if (200 !== response.statusCode) {
+                    res.send(400, {
+                        text: sprintf('Invalid currency %s', toCurrency)
+                    });
+
+                    console.log(response);
+                    console.log(data);
+                    return;
+                }
+
+                res.send(200, {
+                    text: sprintf('*BTC:%s* - Ask: %f | Bid: %f | Last: %f', toCurrency, data.ask, data.bid, data.last),
+                    parse: 'full'
+                });
+            });
+            break;
+
         default:
-            res.end(404, {
+            res.send(404, {
                 error: sprintf('No keyword %s is configured.', req.params.keyword)
             });
             break;
