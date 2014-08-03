@@ -16,10 +16,18 @@ var cachedIdeas = [],
     server,
     companies = ['Gun', 'Electroloom', 'Blossom', 'Patter', 'BlockScore', 'Align', 'Critica', 'Trending.fm', 'Orboros', 'Palarin', 'BlockCypher',
         'Seeds', 'CareerDean', 'Honeybadgr', 'HashRabbit', 'Coin Hako', 'Atlas Card', 'WiFL', 'Hedgy', 'Coinmotion', 'Pylon', 'ZapChain', 'Follow The Coin'],
+    wearables = {
+        devices: ['bracelet', 'e-cigarette', 'headset', 'pair of earbuds', 'pair of glasses','armband', 'watch','wristband','smartpill','handbag','t-shirt', 'temporary tattoo',  'sports bra', 'pair of shoes', 'pair of trainers', 'jumper', 'pair of sandals', 'pair of trousers', 'Pair of sunglasses', 'ankle band', 'heart rate monitor', 'umbrella', 'moneyclip'],
+        actions: ['tweets', 'sends you an email', 'posts to facebook', 'texts your mom', 'chimes', 'throbs', 'glows red', 'flashes', 'turns the central heating on', 'instagrams a selfie', 'glows green', 'vibrates', 'self destructs', 'twinkles', 'makes a vine', 'posts to medium', 'pulsates', 'quivers', 'trembles', 'undulates', 'blinks', 'glistens', 'swtiches the telly on', 'unlocks your computer'],
+        triggers: ['you overeat','you do 50 press ups','you run 10k','you have a pint at lunch','you need a shit','you spend all your wages', 'you have nightmares', 'you fall asleep on the nightbus', 'your train is late', 'your ex is in the building', 'it\'s going to rain', 'it\'s windy', 'your boss is coming', 'it\'s sunny outside', 'george osborne cries', 'it\'s going to snow', 'you burn 100 calories', 'your sleep patterns change', 'there\'s 10% off at asos', 'the cat needs feeding', 'the dog needs letting out', 'the kids need picking up', 'your bus is due', 'someone logs into your facebook account', 'you run out of milk', 'you need to get more teabags', 'you drink too much coffee', 'you\'ve got a hangover', 'you leave the iron on']
+    },
+    getRandomInteger = function (min, max) {
+        return (Math.floor(Math.random() * (max - min + 1)) + min);
+    },
     getRandomCompany = function () {
         var min = 0,
             max = companies.length - 1,
-            index = (Math.floor(Math.random() * (max - min + 1)) + min);
+            index = getRandomInteger(min, max);
         return companies[index];
     },
     getIdea = function (callback) {
@@ -29,10 +37,14 @@ var cachedIdeas = [],
             eventEmitter.emit('needMoreIdeas');
         }
 
-        console.log(idea);
-
         // respond with an idea
         return callback(idea['this'], idea['that']);
+    },
+    getRandomWearableIdea = function (callback) {
+        var deviceIndex = getRandomInteger(0, wearables.devices.length),
+            actionIndex = getRandomInteger(0, wearables.actions.length),
+            triggerIndex = getRandomInteger(0, wearables.triggers.length);
+        callback(wearables.devices[deviceIndex], wearables.actions[actionIndex], wearables.triggers[triggerIndex]);
     };
 
 
@@ -66,26 +78,48 @@ eventEmitter.on('needMoreIdeas', function () {
                 console.log(response);
                 return;
             }
-            // console.log('Got an idea! A startup that is like ' + idea['this'] + ' for ' + idea['that']);
             cachedIdeas.push(idea);
         });
 
     }, startIdeaApiDelay);
 });
 
+app.post('/slackbot/inbound/:keyword', function (req, res) {
 
-app.post('/slackbot/inbound/pivot', function (req, res) {
-    var userName = (req.body.user_name) ? '@' + req.body.user_name : 'y\'all';
-    getIdea(function (properNoun, forMarket) {
-        res.send(200, {
-            text: sprintf('*Thinking of pivoting, %s?* How about %s for %s', userName, properNoun, forMarket),
-            parse: 'full'
-        });
-    });
+    var userName = (req.body.user_name) ? '@' + req.body.user_name : 'y\'all',
+        company = getRandomCompany();
+
+    switch (req.params.keyword) {
+        case 'pivot':
+            getIdea(function (properNoun, forMarket) {
+                res.send(200, {
+                    text: sprintf('Speaking of *pivot* %s, did you hear the rumor that %s has pivoted to a %s for %s?', userName, company, properNoun, forMarket),
+                    parse: 'full'
+                });
+            });
+            break;
+
+        case 'wearable':
+            getRandomWearableIdea(function (device, action, trigger) {
+                res.send(200, {
+                    text: sprintf('*Need a wearable device strategy, %s?* What if %s made a %s that %s when %s.', userName, company, device, action, trigger),
+                    parse: 'full'
+                });
+            });
+            break;
+
+        default:
+            res.end(404, {
+                error: sprintf('No keyword %s is configured.', req.params.keyword)
+            });
+            break;
+    }
 
 });
 
-server = app.listen(3000, function() {
+var port = (process.argv.length === 3) ? process.argv[2] : 3000;
+
+server = app.listen(port, function() {
     console.log('Listening on port %d', server.address().port);
 });
 
