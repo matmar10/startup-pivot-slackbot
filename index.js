@@ -46,8 +46,16 @@ var cachedIdeas = [],
             actionIndex = getRandomInteger(0, wearables.actions.length),
             triggerIndex = getRandomInteger(0, wearables.triggers.length);
         callback(wearables.devices[deviceIndex], wearables.actions[actionIndex], wearables.triggers[triggerIndex]);
-    };
+    },
+    containsOneOf = function (text, words) {
+        for(var i = 0; i < words.length; i++) {
+            if(-1 !== text.indexOf(words[i])) {
+                return true;
+            }
+        }
 
+        return false;
+    };
 
 restClient = new RestClient();
 
@@ -87,6 +95,7 @@ eventEmitter.on('needMoreIdeas', function () {
 app.post('/slackbot/inbound/:keyword', function (req, res) {
 
     var userName = (req.body.user_name) ? '@' + req.body.user_name : 'y\'all',
+        messageText = req.body.text,
         company = getRandomCompany(),
         toCurrency;
 
@@ -131,6 +140,75 @@ app.post('/slackbot/inbound/:keyword', function (req, res) {
             });
             break;
 
+        case 'joke':
+
+            // your momma jokes
+            if (containsOneOf(messageText, ['mom', 'momma', 'yo momma', 'mamma'])) {
+
+                restClient.get('http://api.yomomma.info', {
+                    'Accept': 'application/json'
+                }, function(data, response) {
+
+                    var stripped = data.substring(data.indexOf('<body>') + 6, data.indexOf('</body>')),
+                        parsed = JSON.parse(stripped);
+
+                    var handleError = function () {
+                        res.send(400, {
+                            text: sprintf('Could not get chuck norris joke')
+                        });
+                        console.log(response);
+                        console.log(data);
+                    };
+
+                    if (200 !== response.statusCode) {
+                        handleError();
+                        return;
+                    }
+
+                    res.send(200, {
+                        text: parsed.joke
+                    });
+                });
+                break;
+            }
+
+            // chuck norris jokes
+            if (containsOneOf(messageText, ['chuck', 'norris', 'CHUCK', 'NORRIS', 'Chuck', 'Norris'])) {
+
+                restClient.get('http://api.icndb.com/jokes/random?limitTo=[nerdy]', {}, function(data, response) {
+                    var handleError = function () {
+                        res.send(400, {
+                            text: sprintf('Could not get chuck norris joke')
+                        });
+                        console.log(response);
+                        console.log(data);
+                    };
+
+                    if (200 !== response.statusCode) {
+                        handleError();
+                        return;
+                    }
+
+                    if ('success' !== data.type) {
+                        handleError();
+                        return;
+                    }
+
+                    res.send(200, {
+                        text: data.value.joke
+                    });
+                });
+                break;
+            }
+
+            // default
+
+            res.send(200, {
+                text: '*Usage*: `joke:[type]` - available types are: `chuck norris|chuck`, `yo momma|momma` *DISCLAIMER*: _Use of this Bot is at your own risk and subject to an agreement between you ("User") and the provider of this joke bot ("Jokester"). Jokester does not provide any warranty with regard to joke content ("Jokes"), quality, or appropriateness. Jokester cannot guarantee any level of humor whether stated or implied. By using this bot, User consents and agrees to absolve Jokester of any and all liability whatsoever related to the jokes presented herewith entirely whatsoever ab initio et ad infinitum._',
+                parse: 'full'
+            });
+            break;
+
         default:
             res.send(404, {
                 error: sprintf('No keyword %s is configured.', req.params.keyword)
@@ -147,3 +225,4 @@ server = app.listen(port, function() {
 });
 
 eventEmitter.emit('needMoreIdeas');
+
